@@ -914,3 +914,242 @@ function showToast(message) {
     toast.classList.remove('show');
   }, 3200);
 }
+
+/* ==========================================================================
+   FIGHTER JET BACKGROUND ANIMATION
+   ========================================================================== */
+(function initJetCanvas() {
+  const canvas = document.getElementById('jet-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Jet fighter class
+  class FighterJet {
+    constructor() {
+      this.reset();
+    }
+
+    reset() {
+      // Random direction: 0 = left-to-right, 1 = right-to-left, 2 = top-left diagonal, 3 = top-right diagonal
+      this.direction = Math.floor(Math.random() * 4);
+      this.size = 18 + Math.random() * 14; // 18-32px
+      this.speed = 1.5 + Math.random() * 2.5;
+      this.opacity = 0.15 + Math.random() * 0.25;
+      this.trail = [];
+      this.trailMax = 60 + Math.floor(Math.random() * 40);
+      this.glowColor = Math.random() > 0.5 ? '0, 240, 255' : '0, 200, 180'; // cyan or teal
+      this.wobbleAmp = 0.3 + Math.random() * 0.7;
+      this.wobbleFreq = 0.01 + Math.random() * 0.02;
+      this.tick = Math.random() * 1000;
+      this.afterburner = 0.5 + Math.random() * 0.5;
+
+      switch (this.direction) {
+        case 0: // left to right
+          this.x = -60;
+          this.y = Math.random() * canvas.height * 0.7 + canvas.height * 0.05;
+          this.angle = -0.1 + Math.random() * 0.2;
+          break;
+        case 1: // right to left
+          this.x = canvas.width + 60;
+          this.y = Math.random() * canvas.height * 0.7 + canvas.height * 0.05;
+          this.angle = Math.PI + (-0.1 + Math.random() * 0.2);
+          break;
+        case 2: // top-left to bottom-right diagonal
+          this.x = -60;
+          this.y = -60;
+          this.angle = 0.3 + Math.random() * 0.4;
+          break;
+        case 3: // top-right to bottom-left diagonal
+          this.x = canvas.width + 60;
+          this.y = -60;
+          this.angle = Math.PI - 0.3 - Math.random() * 0.4;
+          break;
+      }
+    }
+
+    update() {
+      this.tick++;
+      const wobble = Math.sin(this.tick * this.wobbleFreq) * this.wobbleAmp;
+
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed + wobble * 0.3;
+
+      // Store trail point
+      this.trail.push({ x: this.x, y: this.y, age: 0 });
+      if (this.trail.length > this.trailMax) this.trail.shift();
+      this.trail.forEach(p => p.age++);
+
+      // Check if out of bounds
+      if (this.x < -150 || this.x > canvas.width + 150 ||
+          this.y < -150 || this.y > canvas.height + 150) {
+        this.reset();
+      }
+    }
+
+    drawTrail() {
+      if (this.trail.length < 2) return;
+      for (let i = 1; i < this.trail.length; i++) {
+        const p0 = this.trail[i - 1];
+        const p1 = this.trail[i];
+        const progress = i / this.trail.length;
+        const alpha = progress * this.opacity * 0.6;
+        const width = progress * 2.5;
+
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.strokeStyle = `rgba(${this.glowColor}, ${alpha})`;
+        ctx.lineWidth = width;
+        ctx.stroke();
+      }
+
+      // Glow trail at end
+      const last = this.trail[this.trail.length - 1];
+      const glowGrad = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, 8);
+      glowGrad.addColorStop(0, `rgba(${this.glowColor}, ${this.opacity * 0.5})`);
+      glowGrad.addColorStop(1, `rgba(${this.glowColor}, 0)`);
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = glowGrad;
+      ctx.fill();
+    }
+
+    drawJet() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+      ctx.globalAlpha = this.opacity;
+
+      const s = this.size;
+
+      // Afterburner glow
+      const abGrad = ctx.createRadialGradient(-s * 0.8, 0, 0, -s * 0.8, 0, s * 0.6 * this.afterburner);
+      abGrad.addColorStop(0, `rgba(${this.glowColor}, 0.6)`);
+      abGrad.addColorStop(0.5, `rgba(${this.glowColor}, 0.2)`);
+      abGrad.addColorStop(1, `rgba(${this.glowColor}, 0)`);
+      ctx.beginPath();
+      ctx.arc(-s * 0.8, 0, s * 0.6 * this.afterburner, 0, Math.PI * 2);
+      ctx.fillStyle = abGrad;
+      ctx.fill();
+
+      // Main fuselage
+      ctx.beginPath();
+      ctx.moveTo(s, 0);                    // nose
+      ctx.lineTo(s * 0.5, -s * 0.08);      // upper nose
+      ctx.lineTo(-s * 0.1, -s * 0.1);      // cockpit top
+      ctx.lineTo(-s * 0.6, -s * 0.12);     // fuselage top
+      ctx.lineTo(-s * 0.8, -s * 0.08);     // tail top
+      ctx.lineTo(-s * 0.8, s * 0.08);      // tail bottom
+      ctx.lineTo(-s * 0.6, s * 0.12);      // fuselage bottom
+      ctx.lineTo(-s * 0.1, s * 0.1);       // cockpit bottom
+      ctx.lineTo(s * 0.5, s * 0.08);       // lower nose
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${this.glowColor}, 0.7)`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(${this.glowColor}, 0.9)`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Delta wings
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, -s * 0.1);
+      ctx.lineTo(-s * 0.35, -s * 0.55);
+      ctx.lineTo(-s * 0.55, -s * 0.45);
+      ctx.lineTo(-s * 0.45, -s * 0.12);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${this.glowColor}, 0.5)`;
+      ctx.fill();
+      ctx.stroke();
+
+      // Bottom wing (mirror)
+      ctx.beginPath();
+      ctx.moveTo(s * 0.1, s * 0.1);
+      ctx.lineTo(-s * 0.35, s * 0.55);
+      ctx.lineTo(-s * 0.55, s * 0.45);
+      ctx.lineTo(-s * 0.45, s * 0.12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Tail fins
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.6, -s * 0.12);
+      ctx.lineTo(-s * 0.75, -s * 0.35);
+      ctx.lineTo(-s * 0.85, -s * 0.3);
+      ctx.lineTo(-s * 0.8, -s * 0.1);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${this.glowColor}, 0.45)`;
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.6, s * 0.12);
+      ctx.lineTo(-s * 0.75, s * 0.35);
+      ctx.lineTo(-s * 0.85, s * 0.3);
+      ctx.lineTo(-s * 0.8, s * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Cockpit canopy highlight
+      ctx.beginPath();
+      ctx.ellipse(s * 0.25, -s * 0.02, s * 0.15, s * 0.04, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${this.glowColor}, 0.9)`;
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    draw() {
+      this.drawTrail();
+      this.drawJet();
+    }
+  }
+
+  // Create fleet of jets
+  const jets = [];
+  const JET_COUNT = 4;
+  for (let i = 0; i < JET_COUNT; i++) {
+    const jet = new FighterJet();
+    // Stagger spawn positions so they don't all appear at once
+    jet.x += Math.random() * canvas.width * 0.5;
+    jet.y = Math.random() * canvas.height;
+    jets.push(jet);
+  }
+
+  // Spawn new jets at random intervals
+  let spawnTimer = 0;
+  const spawnInterval = 300 + Math.random() * 400; // frames
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    spawnTimer++;
+    if (spawnTimer > spawnInterval && jets.length < 6) {
+      jets.push(new FighterJet());
+      spawnTimer = 0;
+    }
+
+    // Remove excess jets that have gone off-screen to prevent memory bloat
+    while (jets.length > 8) jets.shift();
+
+    jets.forEach(jet => {
+      jet.update();
+      jet.draw();
+    });
+
+    requestAnimationFrame(animate);
+  }
+
+  // Start animation after preloader finishes (delay a bit)
+  setTimeout(() => {
+    animate();
+  }, 2000);
+})();
